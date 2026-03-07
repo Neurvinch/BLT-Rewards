@@ -16,31 +16,34 @@
  *   Add it to GitHub via: Settings → Secrets → Actions → New secret.
  */
 
-'use strict';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const fs   = require('fs');
-const path = require('path');
-
-const {
+import {
   Connection,
   Keypair,
   clusterApiUrl,
   LAMPORTS_PER_SOL,
-} = require('@solana/web3.js');
+} from '@solana/web3.js';
 
-const {
+import {
   createMint,
   getOrCreateAssociatedTokenAccount,
   mintTo,
-} = require('@solana/spl-token');
+} from '@solana/spl-token';
 
-const bs58 = require('bs58');
+import bs58 from 'bs58';
+
+// ES module __dirname shim
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Configuration
-const NETWORK        = process.env.SOLANA_NETWORK || 'devnet';
-const DECIMALS       = 6;
+const NETWORK = process.env.SOLANA_NETWORK || 'devnet';
+const DECIMALS = 6;
 const INITIAL_SUPPLY = 1_000_000;            // 1 million whole tokens
-const KEYPAIR_FILE   = path.join(__dirname, 'bacon-treasury-keypair.json');
+const KEYPAIR_FILE = path.join(__dirname, 'bacon-treasury-keypair.json');
 
 async function main() {
   const connection = new Connection(clusterApiUrl(NETWORK), 'confirmed');
