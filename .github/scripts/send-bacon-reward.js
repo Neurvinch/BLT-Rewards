@@ -20,25 +20,28 @@
  *   recipient – recipient wallet address
  */
 
-'use strict';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const fs   = require('fs');
-const path = require('path');
-
-const {
+import {
   Connection,
   Keypair,
   PublicKey,
   clusterApiUrl,
-} = require('@solana/web3.js');
+} from '@solana/web3.js';
 
-const {
+import {
   getOrCreateAssociatedTokenAccount,
   transfer,
   getMint,
-} = require('@solana/spl-token');
+} from '@solana/spl-token';
 
-const bs58 = require('bs58');
+import bs58 from 'bs58';
+
+// ES module __dirname shim
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -87,9 +90,12 @@ function resolveRecipientWallet(contributorGithub) {
     } catch (e) {
       console.warn(`Warning: could not parse contributors-wallets.json — ${e.message}`);
     }
-    if (wallets && wallets[contributorGithub]) {
-      console.log(`Found wallet for @${contributorGithub} in contributors-wallets.json`);
-      return new PublicKey(wallets[contributorGithub]);
+    // Case-insensitive lookup
+    const normalizedGithub = contributorGithub.toLowerCase();
+    const entry = Object.entries(wallets).find(([user]) => user.toLowerCase() === normalizedGithub);
+    if (entry) {
+      console.log(`Found wallet for @${contributorGithub} (mapped as ${entry[0]}) in contributors-wallets.json`);
+      return new PublicKey(entry[1]);
     }
   }
 
@@ -97,9 +103,9 @@ function resolveRecipientWallet(contributorGithub) {
   const eventPath = process.env.GITHUB_EVENT_PATH;
   if (eventPath && fs.existsSync(eventPath)) {
     try {
-      const event  = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
+      const event = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
       const prBody = event.pull_request?.body || '';
-      const match  = prBody.match(/SOLANA_WALLET[:\s]+([1-9A-HJ-NP-Za-km-z]{32,44})/);
+      const match = prBody.match(/SOLANA_WALLET[:\s]+([1-9A-HJ-NP-Za-km-z]{32,44})/);
       if (match) {
         const addr = new PublicKey(match[1]);   // throws if invalid
         console.log(`Found wallet for @${contributorGithub} in PR body`);
@@ -116,12 +122,12 @@ function resolveRecipientWallet(contributorGithub) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-  const treasuryRaw      = process.env.BACON_TREASURY_KEYPAIR;
-  const mintStr          = process.env.BACON_TOKEN_MINT;
-  const contributorGH    = process.env.CONTRIBUTOR_GITHUB   || 'unknown';
-  const rewardAmountRaw  = process.env.REWARD_AMOUNT         || '10';
-  const network          = process.env.SOLANA_NETWORK        || 'devnet';
-  const prNumber         = process.env.PR_NUMBER             || '?';
+  const treasuryRaw = process.env.BACON_TREASURY_KEYPAIR;
+  const mintStr = process.env.BACON_TOKEN_MINT;
+  const contributorGH = process.env.CONTRIBUTOR_GITHUB || 'unknown';
+  const rewardAmountRaw = process.env.REWARD_AMOUNT || '10';
+  const network = process.env.SOLANA_NETWORK || 'devnet';
+  const prNumber = process.env.PR_NUMBER || '?';
 
   // ── Validate required env vars ───────────────────────────────────────────────
   if (!treasuryRaw) {
@@ -148,8 +154,15 @@ async function main() {
     process.exit(1);
   }
 
-  const tokenMint    = new PublicKey(mintStr);
+  const tokenMint = new PublicKey(mintStr);
   const rewardAmount = parseInt(rewardAmountRaw, 10);
+
+  if (isNaN(rewardAmount) || rewardAmount <= 0) {
+    console.error(`ERROR: Invalid REWARD_AMOUNT: "${rewardAmountRaw}". Must be a positive integer.`);
+    setOutput('status', 'failed');
+    setOutput('reason', `Invalid REWARD_AMOUNT: ${rewardAmountRaw}`);
+    process.exit(1);
+  }
 
   console.log(`\n── BACON Reward Pipeline ──────────────────────────────────`);
   console.log(`  PR:          #${prNumber}`);
@@ -171,18 +184,18 @@ async function main() {
       'Add it to .github/contributors-wallets.json or include ' +
       '"SOLANA_WALLET: <address>" in a PR description.'
     );
-    setOutput('txid',   '');
+    setOutput('txid', '');
     setOutput('amount', rewardAmount.toString());
     process.exit(0);   // exit 0 — not an error, just a pending state
   }
 
   // ── Connect to Solana ─────────────────────────────────────────────────────────
-  const rpcUrl     = clusterApiUrl(network);
+  const rpcUrl = clusterApiUrl(network);
   const connection = new Connection(rpcUrl, 'confirmed');
   console.log(`Connected to ${network}: ${rpcUrl}`);
 
   // ── Fetch mint info (decimals) ────────────────────────────────────────────────
-  const mintInfo  = await getMint(connection, tokenMint);
+  const mintInfo = await getMint(connection, tokenMint);
   const rawAmount = BigInt(rewardAmount) * BigInt(10 ** mintInfo.decimals);
   console.log(`Token decimals: ${mintInfo.decimals}`);
   console.log(`Raw transfer amount: ${rawAmount}`);
@@ -205,7 +218,7 @@ async function main() {
     console.error('ERROR:', msg);
     setOutput('status', 'failed');
     setOutput('reason', msg);
-    setOutput('txid',   '');
+    setOutput('txid', '');
     process.exit(1);
   }
 
@@ -237,17 +250,17 @@ async function main() {
   console.log(`Explorer: ${explorerUrl}`);
 
   // ── Write outputs ─────────────────────────────────────────────────────────────
-  setOutput('status',    'success');
-  setOutput('txid',      txid);
-  setOutput('amount',    rewardAmount.toString());
+  setOutput('status', 'success');
+  setOutput('txid', txid);
+  setOutput('amount', rewardAmount.toString());
   setOutput('recipient', recipientPubkey.toString());
-  setOutput('explorer',  explorerUrl);
+  setOutput('explorer', explorerUrl);
 }
 
 main().catch((err) => {
   console.error('Fatal error:', err.message || err);
   setOutput('status', 'failed');
   setOutput('reason', String(err.message || err));
-  setOutput('txid',   '');
+  setOutput('txid', '');
   process.exit(1);
 });
