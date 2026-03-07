@@ -122,5 +122,3 @@ function changeTxPage(delta) {
         console.error('Tx page change failed:', err);
     });
 }
-
-export {};

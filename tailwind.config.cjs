@@ -5,7 +5,13 @@ module.exports = {
     './src/**/*.js'
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        'blt-red': '#E10101',
+        'blt-red-hover': '#b91c1c',
+        'solana-purple': '#9945ff',
+      }
+    },
   },
   plugins: [],
 };

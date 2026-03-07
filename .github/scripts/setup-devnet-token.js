@@ -23,6 +23,7 @@ import { fileURLToPath } from 'url';
 import {
   Connection,
   Keypair,
+  PublicKey,
   clusterApiUrl,
   LAMPORTS_PER_SOL,
 } from '@solana/web3.js';
@@ -64,7 +65,8 @@ async function main() {
     console.log('Generating new treasury keypair…');
     treasury = Keypair.generate();
     // Save as JSON array (Solana CLI format — safe for GH Secrets too)
-    fs.writeFileSync(KEYPAIR_FILE, JSON.stringify(Array.from(treasury.secretKey)));
+    // Use restrictive file mode (0o600) to prevent unauthorized access on shared systems
+    fs.writeFileSync(KEYPAIR_FILE, JSON.stringify(Array.from(treasury.secretKey)), { mode: 0o600 });
     console.log(`Treasury public key: ${treasury.publicKey.toString()}`);
     console.log(`Key saved to:        ${KEYPAIR_FILE}  ← keep this secret!\n`);
   }
@@ -82,16 +84,28 @@ async function main() {
     console.log('Sufficient SOL balance, skipping airdrop.');
   }
 
-  // ── Create the SPL token mint ─────────────────────────────────────────────────
-  console.log(`\nCreating BACON token mint (decimals=${DECIMALS})…`);
-  const mint = await createMint(
-    connection,
-    treasury,               // payer
-    treasury.publicKey,     // mint authority
-    treasury.publicKey,     // freeze authority (can be null to disable)
-    DECIMALS
-  );
-  console.log(`Mint created: ${mint.toString()}`);
+  // ── Load or create BACON token mint (prevent rerun rotation) ──────────────────
+  const MINT_FILE = KEYPAIR_FILE.replace('keypair.json', 'mint.json');
+  let mint;
+  if (fs.existsSync(MINT_FILE)) {
+    const storedMint = JSON.parse(fs.readFileSync(MINT_FILE, 'utf8')).mint;
+    console.log(`\nLoading persisted BACON token mint: ${storedMint}`);
+    mint = new PublicKey(storedMint);
+  } else {
+    console.log(`\nCreating BACON token mint (decimals=${DECIMALS})…`);
+    const createdMint = await createMint(
+      connection,
+      treasury,               // payer
+      treasury.publicKey,     // mint authority
+      treasury.publicKey,     // freeze authority (can be null to disable)
+      DECIMALS
+    );
+    mint = createdMint;
+    // Persist the mint so reruns don't create a new one
+    fs.writeFileSync(MINT_FILE, JSON.stringify({ mint: mint.toString() }, null, 2), { mode: 0o600 });
+    console.log(`Mint created and persisted: ${mint.toString()}`);
+  }
+  console.log(`Using BACON mint: ${mint.toString()}`);
 
   // ── Create treasury ATA and mint initial supply ───────────────────────────────
   console.log(`\nCreating treasury Associated Token Account…`);
