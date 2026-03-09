@@ -52,8 +52,26 @@ jobs:
           echo "amount=$amount" >> "$GITHUB_OUTPUT"
           echo "PR +${additions} lines → reward: ${amount} BACON tokens"
 
+      # ── 4.5. Check for prior payment (idempotency) ───────────────────────────
+      - name: Check for existing reward comment
+        id: check_prior
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+            });
+            const alreadySent = comments.some(c => c.body.includes('## 🥓 BACON Reward Sent!'));
+            core.setOutput('already_sent', alreadySent);
+            if (alreadySent) {
+              core.info('PR already has a successful BACON reward comment. Skipping.');
+            }
+
       # ── 5. Execute the on-chain transfer ──────────────────────────────────────
       - name: Send on-chain BACON reward
+        if: steps.check_prior.outputs.already_sent != 'true'
         id: send_reward
         env:
           # Treasury wallet: JSON array  [1,2,3,...] or base58 private key string
