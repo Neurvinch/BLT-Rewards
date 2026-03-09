@@ -117,7 +117,7 @@ async function main() {
   );
   console.log(`Treasury ATA: ${treasuryATA.address.toString()}`);
 
-  const rawSupply = BigInt(INITIAL_SUPPLY) * BigInt(10 ** DECIMALS);
+  const rawSupply = BigInt(INITIAL_SUPPLY) * (BigInt(10) ** BigInt(DECIMALS));
   console.log(`Minting ${INITIAL_SUPPLY.toLocaleString()} BACON tokens…`);
   const mintSig = await mintTo(
     connection,

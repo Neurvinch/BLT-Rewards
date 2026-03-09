@@ -96,8 +96,14 @@ function resolveRecipientWallet(contributorGithub) {
       const normalizedGithub = contributorGithub.toLowerCase();
       const entry = Object.entries(wallets).find(([user]) => user.toLowerCase() === normalizedGithub);
       if (entry) {
-        console.log(`Found wallet for @${contributorGithub} (mapped as ${entry[0]}) in contributors-wallets.json`);
-        return new PublicKey(entry[1]);
+        try {
+          const addr = new PublicKey(entry[1]);
+          console.log(`Found wallet for @${contributorGithub} (mapped as ${entry[0]}) in contributors-wallets.json`);
+          return addr;
+        } catch (e) {
+          console.warn(`Warning: invalid wallet address for @${contributorGithub} in contributors-wallets.json — ${e.message}`);
+          // Fall through to Method 2
+        }
       }
     }
   }
@@ -220,7 +226,7 @@ async function main() {
 
   // ── Fetch mint info (decimals) ────────────────────────────────────────────────
   const mintInfo = await getMint(connection, tokenMint);
-  const rawAmount = BigInt(rewardAmount) * BigInt(10 ** mintInfo.decimals);
+  const rawAmount = BigInt(rewardAmount) * (BigInt(10) ** BigInt(mintInfo.decimals));
   console.log(`Token decimals: ${mintInfo.decimals}`);
   console.log(`Raw transfer amount: ${rawAmount}`);
 
