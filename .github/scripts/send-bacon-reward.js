@@ -180,20 +180,6 @@ async function main() {
 
   const tokenMint = new PublicKey(mintStr);
 
-  // ── Check idempotency: skip if this PR was already paid ───────────────────────
-  const idempotencyKey = `pr-${prNumber}-${contributorGH}`;
-  const idempotencyFile = path.join(__dirname, '..', `payout-${idempotencyKey}.txt`);
-  if (fs.existsSync(idempotencyFile)) {
-    const prevTxid = fs.readFileSync(idempotencyFile, 'utf8').trim();
-    console.log(`\n⚠️  Idempotency check: PR #${prNumber} was already paid to @${contributorGH}`);
-    console.log(`    Previous TXID: ${prevTxid}`);
-    console.log(`    Skipping duplicate payment.`);
-    setOutput('status', 'skipped');
-    setOutput('reason', 'Already paid');
-    setOutput('txid', prevTxid);
-    return;
-  }
-
   console.log(`\n── BACON Reward Pipeline ──────────────────────────────────`);
   console.log(`  PR:          #${prNumber}`);
   console.log(`  Contributor: @${contributorGH}`);
@@ -278,14 +264,6 @@ async function main() {
   console.log(`\nTransaction confirmed!`);
   console.log(`TXID:     ${txid}`);
   console.log(`Explorer: ${explorerUrl}`);
-
-  // ── Record idempotency to prevent double-payment on rerun ──────────────────────
-  try {
-    fs.writeFileSync(idempotencyFile, txid, { mode: 0o644 });
-    console.log(`Idempotency recorded: ${idempotencyFile}`);
-  } catch (e) {
-    console.warn(`Warning: could not write idempotency file: ${e.message}`);
-  }
 
   // ── Write outputs ─────────────────────────────────────────────────────────────
   setOutput('status', 'success');
