@@ -37,4 +37,13 @@ def setInterval(callback: Any, delay: int) -> int:
 def clearInterval(id: int) -> None:
     pass
 
-console: Any = None
+class Console:
+    """Mock console for local development."""
+    def log(self, *args: Any) -> None:
+        print("[console.log]", *args)
+    def warn(self, *args: Any) -> None:
+        print("[console.warn]", *args)
+    def error(self, *args: Any) -> None:
+        print("[console.error]", *args)
+
+console = Console()

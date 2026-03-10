@@ -71,7 +71,7 @@ async def on_fetch(request, env):
 
         # 3. Verify Signature (The "Signature Fix")
         # Ensure BACON_WEBHOOK_SECRET is set in Cloudflare dashboard or wrangler.toml
-        secret = env.BACON_WEBHOOK_SECRET
+        secret = getattr(env, 'BACON_WEBHOOK_SECRET', None)
         if not secret:
             return Response.new(
                 json.dumps({'error': 'Webhook secret not configured on server'}), 
@@ -97,9 +97,8 @@ async def on_fetch(request, env):
                     {'status': 200, 'headers': {'Content-Type': 'application/json', **cors_headers}}
                 )
             
-            # Store the ID to prevent future replays
-            # We "put" it now. For production, you'd ideally use expirationTtl to clean up old IDs.
-            await env.REWARDS_KV.put(kv_key, "processed")
+            # Note: We record this as "processed" ONLY after successful logic (Step 5)
+            # to ensure that if the worker fails mid-way, GitHub can retry.
         else:
             # Fallback if KV is not bound yet, though it should be
             print("Warning: REWARDS_KV not bound to worker")
@@ -111,8 +110,11 @@ async def on_fetch(request, env):
             
             print(f"Verified webhook received: {event_type} (Delivery: {delivery_id})")
             
-            # TODO: Add specific logic to trigger BACON rewards based on event_data
-            # For now, we acknowledge successful receipt and verification
+            # Record success in KV to prevent future replays
+            if hasattr(env, 'REWARDS_KV'):
+                # Set expiration to 7 days (604800 seconds) to keep the KV clean
+                await env.REWARDS_KV.put(f"webhook_delivery:{delivery_id}", "processed", {"expirationTtl": 604800})
+
             return Response.new(
                 json.dumps({
                     'status': 'success', 

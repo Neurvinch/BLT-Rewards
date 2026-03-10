@@ -137,8 +137,16 @@ async function main() {
   const prNumber = process.env.PR_NUMBER || '?';
 
   // ── Validate REWARD_AMOUNT strictly (fail closed) ──────────────────────────────
-  const rewardAmountRaw = process.env.REWARD_AMOUNT;
-  if (!rewardAmountRaw || !/^\d+$/.test(rewardAmountRaw.trim())) {
+  let rewardAmountRaw = process.env.REWARD_AMOUNT;
+  if (!rewardAmountRaw) {
+    console.error(`ERROR: REWARD_AMOUNT is not set.`);
+    setOutput('status', 'failed');
+    setOutput('reason', 'REWARD_AMOUNT is missing');
+    process.exit(1);
+  }
+
+  rewardAmountRaw = rewardAmountRaw.trim();
+  if (!/^\d+$/.test(rewardAmountRaw)) {
     console.error(`ERROR: REWARD_AMOUNT must be a positive integer. Got: "${rewardAmountRaw}"`);
     setOutput('status', 'failed');
     setOutput('reason', `Invalid REWARD_AMOUNT: ${rewardAmountRaw}`);
